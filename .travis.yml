@@ -1,0 +1,15 @@
+sudo: required
+services:
+  - docker
+
+script:
+  - docker-compose up -d redis
+  - docker-compose up golang
+  - docker-compose run golang go build -o redis_lru_cache .
+  - docker-compose down
+
+notifications:
+  email: false
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
