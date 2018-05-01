@@ -110,7 +110,7 @@ $ GOPATH=`pwd`/vendor/ go get -d -v .
 ## To Do
 
 - [ ] Refactor to avoid duplicate mutexes
-- [ ] Refactor to include 12-Factor initialization in code coverage
+- [x] Refactor to include 12-Factor initialization in code coverage
 - [ ] Add goroutines for multiple clients ([pool](https://godoc.org/github.com/mediocregopher/radix.v2/pool) looks useful)
 - [ ] Add RESP ([respgo](https://github.com/teambition/respgo) looks useful
 - [ ] Add pipelining

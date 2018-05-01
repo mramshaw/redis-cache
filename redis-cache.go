@@ -169,41 +169,43 @@ func createRouter() *mux.Router {
 	return router
 }
 
-func main() {
-
-	var redisAddr string
-	var cacheSize int
-	var portStr string
-
-	var err error
+func getEnvironmentVariables() (redisAddr string, timeLimit int, cacheSize int, portStr string) {
 
 	redisAddr = os.Getenv("REDIS")
 	if redisAddr == "" {
-		fmt.Printf("Invalid Redis: '%s', setting to 'redis-backend:6379'\n", redisAddr)
+		log.Printf("Invalid Redis: '%s', setting to 'redis-backend:6379'\n", redisAddr)
 		redisAddr = "redis-backend:6379"
 	}
 
+	var err error
+
 	expiryTimeStr := os.Getenv("EXPIRY_TIME")
-	timeLimit, err := strconv.Atoi(expiryTimeStr)
+	timeLimit, err = strconv.Atoi(expiryTimeStr)
 	if err != nil {
-		fmt.Printf("Invalid expiry time: '%s', setting to 5 seconds\n", expiryTimeStr)
+		log.Printf("Invalid expiry time: '%s', setting to 5 seconds\n", expiryTimeStr)
 		timeLimit = 5000
 	}
 
 	cacheSizeStr := os.Getenv("CACHE_SIZE")
 	cacheSize, err = strconv.Atoi(cacheSizeStr)
 	if err != nil {
-		fmt.Printf("Invalid cache size: '%s', setting to 100\n", portStr)
+		log.Printf("Invalid cache size: '%s', setting to 100\n", portStr)
 		cacheSize = 100
 	}
 
 	portStr = os.Getenv("PORT")
 	_, err = strconv.Atoi(portStr)
 	if err != nil {
-		fmt.Printf("Invalid port: '%s', setting to 5000\n", portStr)
+		log.Printf("Invalid port: '%s', setting to 5000\n", portStr)
 		portStr = "5000"
 	}
 
+	return
+}
+
+func main() {
+
+	redisAddr, timeLimit, cacheSize, portStr := getEnvironmentVariables()
 	log.Printf("Caching redis: %s, expiry=%d, cache size=%d, port=%s\n", redisAddr, timeLimit, cacheSize, portStr)
 
 	redisCache = createLockableCache(cacheSize)

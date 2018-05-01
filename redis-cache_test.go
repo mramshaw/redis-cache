@@ -16,6 +16,10 @@ var router *mux.Router
 
 func TestMain(m *testing.M) {
 
+	// We will not use any of these, including for code coverage purposes.
+	redisAddr, timeLimit, cacheSize, portStr := getEnvironmentVariables()
+	log.Printf("Caching redis: %s, expiry=%d, cache size=%d, port=%s\n", redisAddr, timeLimit, cacheSize, portStr)
+
 	client = createRedisClient("redis-backend:6379")
 	defer client.Close()
 
