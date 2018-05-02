@@ -16,6 +16,7 @@ run:
 
 build:
 		docker-compose run golang go build -o $(MAIN) .
+		docker-compose down
 
 clean:
 		docker-compose run golang rm ./$(MAIN)

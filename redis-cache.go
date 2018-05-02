@@ -173,7 +173,7 @@ func getEnvironmentVariables() (redisAddr string, timeLimit int, cacheSize int, 
 
 	redisAddr = os.Getenv("REDIS")
 	if redisAddr == "" {
-		log.Printf("Invalid Redis: '%s', setting to 'redis-backend:6379'\n", redisAddr)
+		log.Printf("Invalid REDIS: '%s', setting to 'redis-backend:6379'\n", redisAddr)
 		redisAddr = "redis-backend:6379"
 	}
 
@@ -182,21 +182,21 @@ func getEnvironmentVariables() (redisAddr string, timeLimit int, cacheSize int, 
 	expiryTimeStr := os.Getenv("EXPIRY_TIME")
 	timeLimit, err = strconv.Atoi(expiryTimeStr)
 	if err != nil {
-		log.Printf("Invalid expiry time: '%s', setting to 5 seconds\n", expiryTimeStr)
+		log.Printf("Invalid EXPIRY_TIME: '%s', setting to 5 seconds\n", expiryTimeStr)
 		timeLimit = 5000
 	}
 
 	cacheSizeStr := os.Getenv("CACHE_SIZE")
 	cacheSize, err = strconv.Atoi(cacheSizeStr)
 	if err != nil {
-		log.Printf("Invalid cache size: '%s', setting to 100\n", portStr)
+		log.Printf("Invalid CACHE_SIZE: '%s', setting to 100\n", portStr)
 		cacheSize = 100
 	}
 
 	portStr = os.Getenv("PORT")
 	_, err = strconv.Atoi(portStr)
 	if err != nil {
-		log.Printf("Invalid port: '%s', setting to 5000\n", portStr)
+		log.Printf("Invalid PORT: '%s', setting to 5000\n", portStr)
 		portStr = "5000"
 	}
 
