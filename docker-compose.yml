@@ -25,6 +25,7 @@ services:
             EXPIRY_TIME: 5000
             CACHE_SIZE: 50
             PORT: '5000'
+            TYPE: 'http'
 
     redis:
         image: redis:4.0.9-alpine

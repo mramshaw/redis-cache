@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,8 +20,9 @@ var router *mux.Router
 func TestMain(m *testing.M) {
 
 	// We will not use any of these, including for code coverage purposes.
-	redisAddr, timeLimit, cacheSize, portStr := getEnvironmentVariables()
-	log.Printf("Caching redis: %s, expiry=%d, cache size=%d, port=%s\n", redisAddr, timeLimit, cacheSize, portStr)
+	redisAddr, timeLimit, cacheSize, portStr, portType := getEnvironmentVariables()
+	log.Printf("Caching redis: %s, expiry=%d, cache size=%d, port=%s, type=%s\n", redisAddr, timeLimit, cacheSize, portStr, portType)
+	go startListener("5000")
 
 	client = createRedisClient("redis-backend:6379")
 	defer client.Close()
@@ -39,14 +43,14 @@ func TestEnvironmentDefaults(t *testing.T) {
 
 	os.Clearenv()
 
-	redisAddr, timeLimit, cacheSize, portStr := getEnvironmentVariables()
+	redisAddr, timeLimit, cacheSize, portStr, portType := getEnvironmentVariables()
 
 	if redisAddr != "redis-backend:6379" {
 		t.Errorf("Expected address 'redis-backend:6379'. Got '%s'", redisAddr)
 	}
 
 	if timeLimit != 5000 {
-		t.Errorf("Expected cache size '5000'. Got '%d'", timeLimit)
+		t.Errorf("Expected expiry time '5000'. Got '%d'", timeLimit)
 	}
 
 	if cacheSize != 100 {
@@ -56,6 +60,410 @@ func TestEnvironmentDefaults(t *testing.T) {
 	if portStr != "5000" {
 		t.Errorf("Expected port '5000'. Got '%s'", portStr)
 	}
+
+	if portType != "http" {
+		t.Errorf("Expected type 'http'. Got '%s'", portType)
+	}
+}
+
+func TestCacheMissTCP(t *testing.T) {
+
+	clearCacheStats()
+	redisCache.lru.Purge()
+
+	// Cache size is 50; load 100 entries
+	loadCache(t)
+
+	cacheSize := redisCache.lru.Len()
+	if cacheSize != 50 {
+		t.Errorf("Expected cache size '50'. Got '%d'", cacheSize)
+	}
+
+	clientConn, serverConn := net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err := fmt.Fprintf(clientConn, "[{GET [key50]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err := ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message := string(buf[:])
+	if message != "value50" {
+		t.Errorf("Expected 'value50'. Got '%s'", message)
+	}
+
+	if cacheHit != 0 {
+		t.Errorf("Expected cacheHit '0'. Got '%d'", cacheHit)
+	}
+	if cacheMiss != 101 {
+		t.Errorf("Expected cacheMiss '101'. Got '%d'", cacheMiss)
+	}
+
+	redisCache.lru.Purge()
+	clearCacheStats()
+}
+
+func TestGetExistingRedisKeyTCP(t *testing.T) {
+
+	clearCacheStats()
+	redisCache.lru.Purge()
+
+	clientConn, serverConn := net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err := fmt.Fprintf(clientConn, "[{GET [key1]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err := ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message := string(buf[:])
+	if message != "value1" {
+		t.Errorf("Expected 'value1'. Got '%s'", message)
+	}
+
+	if cacheHit != 0 {
+		t.Errorf("Expected cacheHit '0'. Got '%d'", cacheHit)
+	}
+	if cacheMiss != 1 {
+		t.Errorf("Expected cacheMiss '1'. Got '%d'", cacheMiss)
+	}
+
+	redisCache.lru.Purge()
+	clearCacheStats()
+}
+
+func TestGetNonexistentRedisKeyTCP(t *testing.T) {
+
+	clearCacheStats()
+	redisCache.lru.Purge()
+
+	clientConn, serverConn := net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err := fmt.Fprintf(clientConn, "[{GET [doesNotExist]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err := ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message := string(buf[:])
+	if message != "" {
+		t.Errorf("Expected ''. Got '%s'", message)
+	}
+
+	if cacheHit != 0 {
+		t.Errorf("Expected cacheHit '0'. Got '%d'", cacheHit)
+	}
+	// Qualifies as a cache miss even though cache will not be updated
+	if cacheMiss != 1 {
+		t.Errorf("Expected cacheMiss '1'. Got '%d'", cacheMiss)
+	}
+
+	cacheSize := redisCache.lru.Len()
+	if cacheSize != 0 {
+		t.Errorf("Expected cache size '0'. Got '%d'", cacheSize)
+	}
+	redisCache.lru.Purge()
+	clearCacheStats()
+}
+
+func TestGetExpiredCacheKeyTCP(t *testing.T) {
+
+	clearCacheStats()
+	redisCache.lru.Purge()
+	startExpiryDaemon(5000, 200)
+	defer stopExpiryDaemon()
+
+	key := "expiringCacheKey"
+	val := "no expiry"
+	err := client.Cmd("SET", key, val).Err
+	if err != nil {
+		log.Println("Error on TestGetExpiredCacheKey SET '", key, "' to '", val, "': ", err)
+	}
+
+	clientConn, serverConn := net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err = fmt.Fprintf(clientConn, "[{GET [expiringCacheKey]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err := ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message := string(buf[:])
+	if message != val {
+		t.Errorf("Expected '%s'. Got '%s'", val, message)
+	}
+
+	// Now sleep for 5+ seconds, after which key should be expired
+	//
+	// It needs to be 5+ seconds, rather than 5 seconds, to allow
+	//  cache enough time (including cache expiry interval) to
+	//  expire the key. An extra 210 milliseconds seems to do it.
+	time.Sleep(5210 * time.Millisecond)
+
+	clientConn, serverConn = net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err = fmt.Fprintf(clientConn, "[{GET [expiringCacheKey]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err = ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message = string(buf[:])
+	if message != val {
+		t.Errorf("Expected '%s'. Got '%s'", val, message)
+	}
+
+	if cacheHit != 0 {
+		t.Errorf("Expected cacheHit '0'. Got '%d'", cacheHit)
+	}
+	if cacheMiss != 2 {
+		t.Errorf("Expected cacheMiss '2'. Got '%d'", cacheMiss)
+	}
+	redisCache.lru.Purge()
+	clearCacheStats()
+}
+
+func TestGetExpiredRedisKeyTCP(t *testing.T) {
+
+	clearCacheStats()
+	redisCache.lru.Purge()
+
+	// Start the proxy expiry daemon so that
+	//  we do not get stale cache entries.
+	startExpiryDaemon(5000, 200)
+	defer stopExpiryDaemon()
+
+	key := "expiringRedisKey"
+	val := "6 seconds"
+	err := client.Cmd("SET", key, val, "EX", 6).Err
+	if err != nil {
+		log.Println("Error on TestGetExpiredRedisKey SET '", key, "' to '", val, "': ", err)
+	}
+
+	clientConn, serverConn := net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err = fmt.Fprintf(clientConn, "[{GET [expiringRedisKey]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err := ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message := string(buf[:])
+	if message != val {
+		t.Errorf("Expected '%s'. Got '%s'", val, message)
+	}
+
+	// Now sleep for 6+ seconds, after which key should be expired
+	//
+	// It needs to be longer than the cache expiry time (5 seconds)
+	//  otherwise we will simply get a cached value.
+	//
+	// It needs to be 6+ seconds, rather than 6 seconds, to allow
+	//  Redis enough time to expire the key. An extra millisecond
+	//  seems to be enough, but allow 5 to be on the safe side.
+	time.Sleep(6005 * time.Millisecond)
+
+	clientConn, serverConn = net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err = fmt.Fprintf(clientConn, "[{GET [expiringRedisKey]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err = ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message = string(buf[:])
+	if message != "" {
+		t.Errorf("Expected ''. Got '%s'", message)
+	}
+
+	if cacheHit != 0 {
+		t.Errorf("Expected cacheHit '0'. Got '%d'", cacheHit)
+	}
+	if cacheMiss != 2 {
+		t.Errorf("Expected cacheMiss '2'. Got '%d'", cacheMiss)
+	}
+	redisCache.lru.Purge()
+	clearCacheStats()
+}
+
+func TestGetTouchedCacheKeyTCP(t *testing.T) {
+
+	clearCacheStats()
+	redisCache.lru.Purge()
+
+	// Start the proxy expiry daemon so that
+	//  we do not get stale cache entries.
+	startExpiryDaemon(5000, 200)
+	defer stopExpiryDaemon()
+
+	key := "touchedCacheKey"
+	val := "no expiry"
+	err := client.Cmd("SET", key, val).Err
+	if err != nil {
+		log.Println("Error on TestGetTouchedCacheKeyTCP SET '", key, "' to '", val, "': ", err)
+	}
+
+	clientConn, serverConn := net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err = fmt.Fprintf(clientConn, "[{GET [touchedCacheKey]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err := ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message := string(buf[:])
+	if message != val {
+		t.Errorf("Expected '%s'. Got '%s'", val, message)
+	}
+
+	// Sleep for 3 seconds
+	time.Sleep(3000 * time.Millisecond)
+
+	// There should be 2 seconds left on the cache entry expiry timer;
+	//  this should reset the entry's expiry timer to 5 seconds.
+	clientConn, serverConn = net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err = fmt.Fprintf(clientConn, "[{GET [touchedCacheKey]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err = ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message = string(buf[:])
+	if message != val {
+		t.Errorf("Expected '%s'. Got '%s'", val, message)
+	}
+
+	// Now sleep for 3 seconds, after which key should NOT be expired
+	time.Sleep(3000 * time.Millisecond)
+
+	clientConn, serverConn = net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err = fmt.Fprintf(clientConn, "[{GET [touchedCacheKey]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err = ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message = string(buf[:])
+	if message != val {
+		t.Errorf("Expected '%s'. Got '%s'", val, message)
+	}
+
+	// Now sleep for 5+ seconds (including cache expiry
+	//  interval), after which key should be expired
+	//  in the cache (but not in Redis)
+	time.Sleep(5210 * time.Millisecond)
+
+	clientConn, serverConn = net.Pipe()
+	// Pipe is in-memory but good practice to close
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	go handleRequest(serverConn)
+	_, err = fmt.Fprintf(clientConn, "[{GET [touchedCacheKey]}]")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf, err = ioutil.ReadAll(clientConn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message = string(buf[:])
+	if message != val {
+		t.Errorf("Expected '%s'. Got '%s'", val, message)
+	}
+
+	if cacheHit != 2 {
+		t.Errorf("Expected cacheHit '2'. Got '%d'", cacheHit)
+	}
+	if cacheMiss != 2 {
+		t.Errorf("Expected cacheMiss '2'. Got '%d'", cacheMiss)
+	}
+	redisCache.lru.Purge()
+	clearCacheStats()
 }
 
 func TestHealthCheck(t *testing.T) {

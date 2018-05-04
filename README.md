@@ -107,10 +107,49 @@ The dependencies are sourced as follows:
 $ GOPATH=`pwd`/vendor/ go get -d -v .
 ```
 
+## Testing
+
+For testing, `redis-cli` is needed. Set up test data as follows:
+
+```
+$ redis-cli
+127.0.0.1:6379> SET keyt valuet
+OK
+127.0.0.1:6379> exit
+$
+```
+
+The HTTP version (default) requires `curl` for testing.
+
+The TCP version requires `nc` for testing.
+
+1. docker-compose up -d redis
+2. docker-compose up golang
+3. docker-compose down
+
+#### HTTP
+
+Test as follows:
+
+```
+$ curl http://localhost/keyt
+valuet$
+```
+
+#### TCP
+
+Test as follows:
+
+```
+$ echo -n "[{GET [keyt]}]" | nc localhost 80
+valuet$
+```
+
 ## To Do
 
 - [ ] Refactor to avoid duplicate mutexes
+- [ ] Refactor duplicated tests and testing code (table-driven)
 - [x] Refactor to include 12-Factor initialization in code coverage
 - [ ] Add goroutines for multiple clients ([pool](https://godoc.org/github.com/mediocregopher/radix.v2/pool) looks useful)
-- [ ] Add RESP ([respgo](https://github.com/teambition/respgo) looks useful
+- [x] Add RESP ([respgo](https://github.com/teambition/respgo) looks useful)
 - [ ] Add pipelining

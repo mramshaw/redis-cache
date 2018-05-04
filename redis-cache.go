@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -52,44 +54,6 @@ func healthCheck(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, res)
-}
-
-func getRedis(w http.ResponseWriter, req *http.Request) {
-
-	params := mux.Vars(req)
-	keyToGet := params["key"]
-	cached, found := redisCache.lru.Get(keyToGet)
-	if found {
-		val := cached.(*valueStruct).value
-
-		// Touch cache entry expiry timer
-		redisCache.lock.Lock()
-		redisCache.lru.Remove(keyToGet)
-		entry := &valueStruct{val, time.Now().UnixNano()}
-		redisCache.lru.Add(keyToGet, entry)
-		redisCache.lock.Unlock()
-
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, val)
-		cacheHit++
-		return
-	}
-	cacheMiss++
-	val, err := client.Cmd("GET", keyToGet).Str()
-	if err == redis.ErrRespNil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	} else if err != nil {
-		log.Fatal("Error on 'redis' connection: ", err)
-	}
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, val)
-
-	// Update caching
-	entry := &valueStruct{val, time.Now().UnixNano()}
-	redisCache.lru.Add(keyToGet, entry)
 }
 
 func createLockableCache(size int) lockableCache {
@@ -169,7 +133,38 @@ func createRouter() *mux.Router {
 	return router
 }
 
-func getEnvironmentVariables() (redisAddr string, timeLimit int, cacheSize int, portStr string) {
+func getRedisValue(key string) (string, error) {
+
+	cached, found := redisCache.lru.Get(key)
+	if found {
+		val := cached.(*valueStruct).value
+
+		// Touch cache entry expiry timer
+		redisCache.lock.Lock()
+		redisCache.lru.Remove(key)
+		entry := &valueStruct{val, time.Now().UnixNano()}
+		redisCache.lru.Add(key, entry)
+		redisCache.lock.Unlock()
+
+		cacheHit++
+		return val, nil
+	}
+	cacheMiss++
+	val, err := client.Cmd("GET", key).Str()
+	if err == redis.ErrRespNil {
+		return "", redis.ErrRespNil
+	}
+	if err != nil {
+		log.Fatal("Error on 'redis' connection: ", err)
+	}
+
+	// Update caching
+	entry := &valueStruct{val, time.Now().UnixNano()}
+	redisCache.lru.Add(key, entry)
+	return val, nil
+}
+
+func getEnvironmentVariables() (redisAddr string, timeLimit int, cacheSize int, portStr string, portType string) {
 
 	redisAddr = os.Getenv("REDIS")
 	if redisAddr == "" {
@@ -200,13 +195,72 @@ func getEnvironmentVariables() (redisAddr string, timeLimit int, cacheSize int, 
 		portStr = "5000"
 	}
 
+	portType = os.Getenv("TYPE")
+	if portType != "http" && portType != "tcp" {
+		log.Printf("Invalid TYPE: '%s', setting to 'http'\n", portType)
+		portType = "http"
+	}
+
 	return
+}
+
+func startListener(portStr string) {
+
+	nlr, err := net.Listen("tcp", ":"+portStr)
+	if err != nil {
+		log.Fatal("Could not open 'tcp' connection")
+	}
+	defer nlr.Close()
+	log.Printf("Caching TCP redis proxy now listening on port " + portStr + "...\n")
+	for {
+		conn, err := nlr.Accept()
+		if err != nil {
+			log.Fatal("Could not accept 'tcp' connection")
+		}
+		go handleRequest(conn)
+	}
+}
+
+func handleRequest(conn net.Conn) {
+
+	defer conn.Close()
+
+	buf := make([]byte, 1024)
+
+	length, err := conn.Read(buf)
+	if err != nil {
+		log.Println("Error reading:", err.Error())
+	}
+
+	//	log.Println("Got request", string(buf))
+	buf = bytes.TrimLeft(buf[:length], "[{GET [")
+	buf = bytes.TrimRight(buf, "]}]")
+
+	keyToGet := string(buf)
+	val, err := getRedisValue(keyToGet)
+	conn.Write([]byte(val))
+}
+
+func getRedis(w http.ResponseWriter, req *http.Request) {
+
+	//	log.Println("Got request", req)
+	params := mux.Vars(req)
+	keyToGet := params["key"]
+	val, err := getRedisValue(keyToGet)
+	if err == redis.ErrRespNil {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, val)
 }
 
 func main() {
 
-	redisAddr, timeLimit, cacheSize, portStr := getEnvironmentVariables()
-	log.Printf("Caching redis: %s, expiry=%d, cache size=%d, port=%s\n", redisAddr, timeLimit, cacheSize, portStr)
+	redisAddr, timeLimit, cacheSize, portStr, portType := getEnvironmentVariables()
+	log.Printf("Caching redis: %s, expiry=%d, cache size=%d, port=%s, type=%s\n", redisAddr, timeLimit, cacheSize, portStr, portType)
 
 	redisCache = createLockableCache(cacheSize)
 
@@ -216,8 +270,12 @@ func main() {
 	client = createRedisClient(redisAddr)
 	defer client.Close()
 
-	router := createRouter()
-
-	log.Printf("Caching redis proxy now listening ...\n")
-	log.Fatal(http.ListenAndServe(":"+portStr, router))
+	if portType == "http" {
+		router := createRouter()
+		log.Printf("Caching HTTP redis proxy now listening on port " + portStr + "...\n")
+		log.Fatal(http.ListenAndServe(":"+portStr, router))
+	} else {
+		// TCP listener
+		startListener(portStr)
+	}
 }
