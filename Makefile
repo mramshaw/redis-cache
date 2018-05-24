@@ -5,9 +5,16 @@ all:		$(MAIN)
 
 $(MAIN):	build
 
+.PHONY:     test, clean
+
 test:
 		docker-compose up -d redis
 		docker-compose up golang
+		docker-compose down
+
+relay:
+		docker-compose up -d redis
+		docker-compose up golang-http
 		docker-compose down
 
 run:
@@ -19,5 +26,5 @@ build:
 		docker-compose down
 
 clean:
-		docker-compose run golang rm ./$(MAIN)
+		docker-compose run golang rm -f ./$(MAIN) coverage.html coverage.txt
 		docker-compose down

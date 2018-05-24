@@ -121,7 +121,7 @@ $
 
 The HTTP version (default) requires `curl` for testing.
 
-The TCP version requires `nc` for testing.
+The TCP version requires `nc` (netcat) for testing.
 
 1. docker-compose up -d redis
 2. docker-compose up golang
@@ -142,6 +142,13 @@ Test as follows:
 
 ```
 $ echo -n "[{GET [keyt]}]" | nc localhost 80
+valuet$
+```
+
+Or:
+
+```
+$ cat test | nc localhost 7001
 valuet$
 ```
 
