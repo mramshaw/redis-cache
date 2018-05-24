@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/mediocregopher/radix.v2/redis"
 )
 
-var client *redis.Client
+var redisClient *redis.Client
 
 type lockableCache struct {
 	// lru.Cache is threadsafe but it is exported
@@ -45,7 +46,7 @@ type valueStruct struct {
 
 func healthCheck(w http.ResponseWriter, req *http.Request) {
 
-	res, err := client.Cmd("PING").Str()
+	res, err := redisClient.Cmd("PING").Str()
 	if err != nil {
 		log.Fatal("Error on 'redis' connection: ", err)
 	}
@@ -109,13 +110,9 @@ func expireRedisCache(ms int) {
 	}
 }
 
-func createRedisClient(addr string) *redis.Client {
+func createRedisClient(addr string) (*redis.Client, error) {
 
-	client, err := redis.DialTimeout("tcp", addr, 5*time.Second)
-	if err != nil {
-		log.Fatal("Error on 'redis' connection to '", addr, "' error: ", err)
-	}
-	return client
+	return redis.DialTimeout("tcp", addr, 5*time.Second)
 }
 
 func createRouter() *mux.Router {
@@ -148,12 +145,13 @@ func getRedisValue(key string) (string, error) {
 		return val, nil
 	}
 	cacheMiss++
-	val, err := client.Cmd("GET", key).Str()
+	val, err := redisClient.Cmd("GET", key).Str()
 	if err == redis.ErrRespNil {
 		return "", redis.ErrRespNil
 	}
 	if err != nil {
-		log.Fatal("Error on 'redis' connection: ", err)
+		log.Println("Error on 'redis' connection: ", err)
+		return "", err
 	}
 
 	// Update caching
@@ -162,22 +160,27 @@ func getRedisValue(key string) (string, error) {
 	return val, nil
 }
 
-func startListener(portStr string) {
+func startListener(portStr string) error {
 
 	nlr, err := net.Listen("tcp", ":"+portStr)
 	if err != nil {
-		log.Fatal("Could not open 'tcp' connection")
+		return err
 	}
 	defer nlr.Close()
+
 	log.Printf("Caching TCP redis proxy now listening on port " + portStr + "...\n")
+
 	for {
 		conn, err := nlr.Accept()
 		if err != nil {
 			log.Fatal("Could not accept 'tcp' connection")
 		}
+		log.Println("Accepted conn:", conn)
 		go handleRequest(conn)
 	}
 }
+
+var redisGet = regexp.MustCompile(`^\*\d+\r\n\$\d+\r\nGET\r\n\$\d+\r\n.*\r\n`)
 
 func handleRequest(conn net.Conn) {
 
@@ -190,13 +193,20 @@ func handleRequest(conn net.Conn) {
 		log.Println("Error reading:", err.Error())
 	}
 
-	//	log.Println("Got request", string(buf))
-	buf = bytes.TrimLeft(buf[:length], "[{GET [")
-	buf = bytes.TrimRight(buf, "]}]")
+	if redisGet.Match(buf) {
 
-	keyToGet := string(buf)
-	val, err := getRedisValue(keyToGet)
-	conn.Write([]byte(val))
+		log.Printf("Got redis request, length %d, '%s'\n", length, buf[:length])
+
+		lines := bytes.Split(buf[:length], []byte{'\r', '\n'})
+
+		keyToGet := string(lines[4])
+		val, _ := getRedisValue(keyToGet)
+		conn.Write([]byte(val))
+		return
+	}
+
+	log.Println("Got bad request: ", buf)
+	log.Println("Got bad request: ", string(buf))
 }
 
 func getRedis(w http.ResponseWriter, req *http.Request) {
@@ -225,8 +235,12 @@ func main() {
 	startExpiryDaemon(timeLimit, 100)
 	defer stopExpiryDaemon()
 
-	client = createRedisClient(redisAddr)
-	defer client.Close()
+	var err error
+	redisClient, err = createRedisClient(redisAddr)
+	if err != nil {
+		log.Fatal("Error on 'redis' connection to '", redisAddr, "' error: ", err)
+	}
+	defer redisClient.Close()
 
 	if portType == "http" {
 		router := createRouter()
@@ -234,6 +248,9 @@ func main() {
 		log.Fatal(http.ListenAndServe(":"+portStr, router))
 	} else {
 		// TCP listener
-		startListener(portStr)
+		err := startListener(portStr)
+		if err != nil {
+			log.Fatal("Error starting listener on port '", portStr, "' error: ", err)
+		}
 	}
 }

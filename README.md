@@ -44,7 +44,7 @@ to make space for newer entries.
 
 4. Type the following to run the tests:
 
-    $ make tests
+    $ make test
 
 [It may take a few minutes for the docker images to download.]
 

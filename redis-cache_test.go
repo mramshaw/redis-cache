@@ -19,13 +19,13 @@ var router *mux.Router
 
 func TestMain(m *testing.M) {
 
-	// We will not use any of these, including for code coverage purposes.
+	// We will only use 'redisAddr', the rest are included for code coverage purposes.
 	redisAddr, timeLimit, cacheSize, portStr, portType := getEnvironmentVariables()
 	log.Printf("Caching redis: %s, expiry=%d, cache size=%d, port=%s, type=%s\n", redisAddr, timeLimit, cacheSize, portStr, portType)
 	go startListener("5000")
 
-	client = createRedisClient("redis-backend:6379")
-	defer client.Close()
+	redisClient, _ = createRedisClient(redisAddr)
+	defer redisClient.Close()
 
 	// Set up some data in Redis backend
 	setUpTestData()
@@ -37,6 +37,24 @@ func TestMain(m *testing.M) {
 	// Clear data from Redis backend
 	tearDownTestData()
 	os.Exit(code)
+}
+
+func TestBadListenerConfig(t *testing.T) {
+
+	err := startListener("99999") // Bad port!
+	log.Println(err)
+	if err == nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBadRedisConfig(t *testing.T) {
+
+	_, err := createRedisClient("does-not-exist:9999")
+	log.Println(err)
+	if err == nil {
+		t.Fatal(err)
+	}
 }
 
 func TestCacheMissTCP(t *testing.T) {
@@ -58,7 +76,7 @@ func TestCacheMissTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err := fmt.Fprintf(clientConn, "[{GET [key50]}]")
+	_, err := fmt.Fprintf(clientConn, getRedisString("key50"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +113,7 @@ func TestGetExistingRedisKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err := fmt.Fprintf(clientConn, "[{GET [key1]}]")
+	_, err := fmt.Fprintf(clientConn, getRedisString("key1"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +150,7 @@ func TestGetNonexistentRedisKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err := fmt.Fprintf(clientConn, "[{GET [doesNotExist]}]")
+	_, err := fmt.Fprintf(clientConn, getRedisString("doesNotExist"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +190,7 @@ func TestGetExpiredCacheKeyTCP(t *testing.T) {
 
 	key := "expiringCacheKey"
 	val := "no expiry"
-	err := client.Cmd("SET", key, val).Err
+	err := redisClient.Cmd("SET", key, val).Err
 	if err != nil {
 		log.Println("Error on TestGetExpiredCacheKey SET '", key, "' to '", val, "': ", err)
 	}
@@ -183,7 +201,7 @@ func TestGetExpiredCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, "[{GET [expiringCacheKey]}]")
+	_, err = fmt.Fprintf(clientConn, getRedisString("expiringCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +229,7 @@ func TestGetExpiredCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, "[{GET [expiringCacheKey]}]")
+	_, err = fmt.Fprintf(clientConn, getRedisString("expiringCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +266,7 @@ func TestGetExpiredRedisKeyTCP(t *testing.T) {
 
 	key := "expiringRedisKey"
 	val := "6 seconds"
-	err := client.Cmd("SET", key, val, "EX", 6).Err
+	err := redisClient.Cmd("SET", key, val, "EX", 6).Err
 	if err != nil {
 		log.Println("Error on TestGetExpiredRedisKey SET '", key, "' to '", val, "': ", err)
 	}
@@ -259,7 +277,7 @@ func TestGetExpiredRedisKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, "[{GET [expiringRedisKey]}]")
+	_, err = fmt.Fprintf(clientConn, getRedisString("expiringRedisKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +308,7 @@ func TestGetExpiredRedisKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, "[{GET [expiringRedisKey]}]")
+	_, err = fmt.Fprintf(clientConn, getRedisString("expiringRedisKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +345,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 
 	key := "touchedCacheKey"
 	val := "no expiry"
-	err := client.Cmd("SET", key, val).Err
+	err := redisClient.Cmd("SET", key, val).Err
 	if err != nil {
 		log.Println("Error on TestGetTouchedCacheKeyTCP SET '", key, "' to '", val, "': ", err)
 	}
@@ -338,7 +356,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, "[{GET [touchedCacheKey]}]")
+	_, err = fmt.Fprintf(clientConn, getRedisString("touchedCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +382,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, "[{GET [touchedCacheKey]}]")
+	_, err = fmt.Fprintf(clientConn, getRedisString("touchedCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -388,7 +406,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, "[{GET [touchedCacheKey]}]")
+	_, err = fmt.Fprintf(clientConn, getRedisString("touchedCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +432,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, "[{GET [touchedCacheKey]}]")
+	_, err = fmt.Fprintf(clientConn, getRedisString("touchedCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -437,6 +455,14 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	}
 	redisCache.lru.Purge()
 	clearCacheStats()
+}
+
+func getRedisString(key string) string {
+
+	line4 := len(key)
+
+	// Redis GET command
+	return fmt.Sprintf("*2\r\n$3\r\nGET\r\n$%d\r\n%s\r\n", line4, key)
 }
 
 func TestHealthCheck(t *testing.T) {
@@ -609,7 +635,7 @@ func TestGetExpiredCacheKey(t *testing.T) {
 
 	key := "expiringCacheKey"
 	val := "no expiry"
-	err := client.Cmd("SET", key, val).Err
+	err := redisClient.Cmd("SET", key, val).Err
 	if err != nil {
 		log.Println("Error on TestGetExpiredCacheKey SET '", key, "' to '", val, "': ", err)
 	}
@@ -665,7 +691,7 @@ func TestGetExpiredRedisKey(t *testing.T) {
 
 	key := "expiringRedisKey"
 	val := "6 seconds"
-	err := client.Cmd("SET", key, val, "EX", 6).Err
+	err := redisClient.Cmd("SET", key, val, "EX", 6).Err
 	if err != nil {
 		log.Println("Error on TestGetExpiredRedisKey SET '", key, "' to '", val, "': ", err)
 	}
@@ -724,7 +750,7 @@ func TestGetTouchedCacheKey(t *testing.T) {
 
 	key := "touchedCacheKey"
 	val := "no expiry"
-	err := client.Cmd("SET", key, val).Err
+	err := redisClient.Cmd("SET", key, val).Err
 	if err != nil {
 		log.Println("Error on TestGetTouchedCacheKey SET '", key, "' to '", val, "': ", err)
 	}
@@ -800,7 +826,7 @@ func setUpTestData() {
 
 	log.Printf("Running setUpTestData")
 
-	err := client.Cmd("FLUSHDB").Err
+	err := redisClient.Cmd("FLUSHDB").Err
 	if err != nil {
 		log.Println("Error on setUpTestData FLUSHDB: ", err)
 	}
@@ -809,9 +835,9 @@ func setUpTestData() {
 		iStr := strconv.Itoa(i)
 		key := "key" + iStr
 		value := "value" + iStr
-		err = client.Cmd("SET", key, value).Err
+		err = redisClient.Cmd("SET", key, value).Err
 		if err != nil {
-			log.Println("Error on setUpTestData SET ", key, " to ", value, ": ", err)
+			log.Println("Error on setUpTestData SET ", key, " TO ", value, ": ", err)
 		}
 	}
 }
@@ -820,9 +846,9 @@ func tearDownTestData() {
 
 	log.Printf("Running tearDownTestData")
 
-	err := client.Cmd("FLUSHDB").Err
+	err := redisClient.Cmd("FLUSHDB").Err
 	if err != nil {
-		log.Println("Error on setUpTestData FLUSHDB: ", err)
+		log.Println("Error on tearDownTestData FLUSHDB: ", err)
 	}
 }
 
