@@ -27,6 +27,50 @@ services:
             PORT: '5000'
             TYPE: 'http'
 
+    golang-http:
+        image: golang:1.10.1-alpine
+        networks:
+          redis-caching:
+        depends_on:
+            - golang-tcp
+        ports:
+            - "80:5000"
+        volumes:
+            - ./vendor/src/github.com:/usr/local/go/src/github.com
+            - .:/go/src/redis-cache
+        working_dir: /go/src/redis-cache
+        command: ./redis_lru_cache
+        links:
+            - redis
+        environment:
+            REDIS: 'golang-tcp:7001'
+            EXPIRY_TIME: 5000
+            CACHE_SIZE: 50
+            PORT: '5000'
+            TYPE: 'http'
+
+    golang-tcp:
+        image: golang:1.10.1-alpine
+        networks:
+          redis-caching:
+        depends_on:
+            - redis
+        ports:
+            - "7001:7001"
+        volumes:
+            - ./vendor/src/github.com:/usr/local/go/src/github.com
+            - .:/go/src/redis-cache
+        working_dir: /go/src/redis-cache
+        command: ./redis_lru_cache
+        links:
+            - redis
+        environment:
+            REDIS: 'redis-backend:6379'
+            EXPIRY_TIME: 5000
+            CACHE_SIZE: 50
+            PORT: '7001'
+            TYPE: 'tcp'
+
     redis:
         image: redis:4.0.9-alpine
         networks:

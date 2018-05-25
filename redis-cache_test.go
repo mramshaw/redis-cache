@@ -76,7 +76,7 @@ func TestCacheMissTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err := fmt.Fprintf(clientConn, getRedisString("key50"))
+	_, err := fmt.Fprintf(clientConn, wrapRedisKey("key50"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,8 +86,7 @@ func TestCacheMissTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message := string(buf[:])
-	if message != "value50" {
+	if message := string(unwrapRedisValue(buf[:])); message != "value50" {
 		t.Errorf("Expected 'value50'. Got '%s'", message)
 	}
 
@@ -113,7 +112,7 @@ func TestGetExistingRedisKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err := fmt.Fprintf(clientConn, getRedisString("key1"))
+	_, err := fmt.Fprintf(clientConn, wrapRedisKey("key1"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,8 +122,7 @@ func TestGetExistingRedisKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message := string(buf[:])
-	if message != "value1" {
+	if message := string(unwrapRedisValue(buf[:])); message != "value1" {
 		t.Errorf("Expected 'value1'. Got '%s'", message)
 	}
 
@@ -150,7 +148,7 @@ func TestGetNonexistentRedisKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err := fmt.Fprintf(clientConn, getRedisString("doesNotExist"))
+	_, err := fmt.Fprintf(clientConn, wrapRedisKey("doesNotExist"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,8 +158,7 @@ func TestGetNonexistentRedisKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message := string(buf[:])
-	if message != "" {
+	if message := string(unwrapRedisValue(buf[:])); message != "" {
 		t.Errorf("Expected ''. Got '%s'", message)
 	}
 
@@ -201,7 +198,7 @@ func TestGetExpiredCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, getRedisString("expiringCacheKey"))
+	_, err = fmt.Fprintf(clientConn, wrapRedisKey("expiringCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,8 +208,7 @@ func TestGetExpiredCacheKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message := string(buf[:])
-	if message != val {
+	if message := string(unwrapRedisValue(buf[:])); message != val {
 		t.Errorf("Expected '%s'. Got '%s'", val, message)
 	}
 
@@ -229,7 +225,7 @@ func TestGetExpiredCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, getRedisString("expiringCacheKey"))
+	_, err = fmt.Fprintf(clientConn, wrapRedisKey("expiringCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,8 +235,7 @@ func TestGetExpiredCacheKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message = string(buf[:])
-	if message != val {
+	if message := string(unwrapRedisValue(buf[:])); message != val {
 		t.Errorf("Expected '%s'. Got '%s'", val, message)
 	}
 
@@ -277,7 +272,7 @@ func TestGetExpiredRedisKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, getRedisString("expiringRedisKey"))
+	_, err = fmt.Fprintf(clientConn, wrapRedisKey("expiringRedisKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,8 +282,7 @@ func TestGetExpiredRedisKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message := string(buf[:])
-	if message != val {
+	if message := string(unwrapRedisValue(buf[:])); message != val {
 		t.Errorf("Expected '%s'. Got '%s'", val, message)
 	}
 
@@ -308,7 +302,7 @@ func TestGetExpiredRedisKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, getRedisString("expiringRedisKey"))
+	_, err = fmt.Fprintf(clientConn, wrapRedisKey("expiringRedisKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,8 +312,7 @@ func TestGetExpiredRedisKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message = string(buf[:])
-	if message != "" {
+	if message := string(unwrapRedisValue(buf[:])); message != "" {
 		t.Errorf("Expected ''. Got '%s'", message)
 	}
 
@@ -356,7 +349,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, getRedisString("touchedCacheKey"))
+	_, err = fmt.Fprintf(clientConn, wrapRedisKey("touchedCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,8 +359,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message := string(buf[:])
-	if message != val {
+	if message := string(unwrapRedisValue(buf[:])); message != val {
 		t.Errorf("Expected '%s'. Got '%s'", val, message)
 	}
 
@@ -382,7 +374,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, getRedisString("touchedCacheKey"))
+	_, err = fmt.Fprintf(clientConn, wrapRedisKey("touchedCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,8 +384,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message = string(buf[:])
-	if message != val {
+	if message := string(unwrapRedisValue(buf[:])); message != val {
 		t.Errorf("Expected '%s'. Got '%s'", val, message)
 	}
 
@@ -406,7 +397,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, getRedisString("touchedCacheKey"))
+	_, err = fmt.Fprintf(clientConn, wrapRedisKey("touchedCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,8 +407,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message = string(buf[:])
-	if message != val {
+	if message := string(unwrapRedisValue(buf[:])); message != val {
 		t.Errorf("Expected '%s'. Got '%s'", val, message)
 	}
 
@@ -432,7 +422,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	defer serverConn.Close()
 
 	go handleRequest(serverConn)
-	_, err = fmt.Fprintf(clientConn, getRedisString("touchedCacheKey"))
+	_, err = fmt.Fprintf(clientConn, wrapRedisKey("touchedCacheKey"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -442,8 +432,7 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message = string(buf[:])
-	if message != val {
+	if message := string(unwrapRedisValue(buf[:])); message != val {
 		t.Errorf("Expected '%s'. Got '%s'", val, message)
 	}
 
@@ -455,14 +444,6 @@ func TestGetTouchedCacheKeyTCP(t *testing.T) {
 	}
 	redisCache.lru.Purge()
 	clearCacheStats()
-}
-
-func getRedisString(key string) string {
-
-	line4 := len(key)
-
-	// Redis GET command
-	return fmt.Sprintf("*2\r\n$3\r\nGET\r\n$%d\r\n%s\r\n", line4, key)
 }
 
 func TestHealthCheck(t *testing.T) {

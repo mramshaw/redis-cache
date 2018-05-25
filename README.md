@@ -127,13 +127,32 @@ The TCP version requires `nc` (netcat) for testing.
 2. docker-compose up golang
 3. docker-compose down
 
-#### HTTP
+#### Build
 
-Test as follows:
+Build `redis_lru_cache` (this will save time later).
 
 ```
-$ curl http://localhost/keyt
-valuet$
+$ make
+<...>
+redis_lru_cache has been compiled
+$
+```
+
+#### Redis
+
+Verify redis is running correctly as follows:
+
+```
+$ docker-compose up -d redis
+```
+
+And:
+
+```
+$ cat test | nc localhost 6379
+$6
+valuet
+$
 ```
 
 #### TCP
@@ -141,14 +160,31 @@ valuet$
 Test as follows:
 
 ```
-$ echo -n "[{GET [keyt]}]" | nc localhost 80
-valuet$
+$ docker-compose up golang-tcp
+<...>
 ```
 
-Or:
+In a new console:
 
 ```
 $ cat test | nc localhost 7001
+valuet$
+```
+
+#### HTTP
+
+Test as follows:
+
+
+```
+$ docker-compose up golang-http
+<...>
+```
+
+In a new console:
+
+```
+$ curl http://localhost/keyt
 valuet$
 ```
 

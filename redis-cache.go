@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"net"
@@ -48,7 +47,7 @@ func healthCheck(w http.ResponseWriter, req *http.Request) {
 
 	res, err := redisClient.Cmd("PING").Str()
 	if err != nil {
-		log.Fatal("Error on 'redis' connection: ", err)
+		log.Fatal("healthCheck error: ", err)
 	}
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
@@ -150,7 +149,7 @@ func getRedisValue(key string) (string, error) {
 		return "", redis.ErrRespNil
 	}
 	if err != nil {
-		log.Println("Error on 'redis' connection: ", err)
+		log.Printf("getRedisValue for key '%s', error: %s\n", key, err)
 		return "", err
 	}
 
@@ -173,7 +172,7 @@ func startListener(portStr string) error {
 	for {
 		conn, err := nlr.Accept()
 		if err != nil {
-			log.Fatal("Could not accept 'tcp' connection")
+			log.Println("startListener - error accepting 'tcp' connection:", err)
 		}
 		log.Println("Accepted conn:", conn)
 		go handleRequest(conn)
@@ -195,13 +194,11 @@ func handleRequest(conn net.Conn) {
 
 	if redisGet.Match(buf) {
 
-		log.Printf("Got redis request, length %d, '%s'\n", length, buf[:length])
+		//log.Printf("Got redis request, length %d, '%s'\n", length, buf[:length])
 
-		lines := bytes.Split(buf[:length], []byte{'\r', '\n'})
-
-		keyToGet := string(lines[4])
+		keyToGet := string(unwrapRedisKey(buf[:length]))
 		val, _ := getRedisValue(keyToGet)
-		conn.Write([]byte(val))
+		conn.Write([]byte(wrapRedisValue(val)))
 		return
 	}
 
