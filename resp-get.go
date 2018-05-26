@@ -1,4 +1,4 @@
-// resp_get handles the RESP protocol wrapping & unwrapping for Redis GET requests.
+// resp-get handles the RESP protocol wrapping & unwrapping for Redis GET requests.
 package main
 
 import (

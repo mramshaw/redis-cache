@@ -32,6 +32,13 @@ The size of the cache may also be specified; only this number of
 entries may be stored in the cache, with older entries being evicted
 to make space for newer entries.
 
+#### RESP
+
+Internally, redis uses its own wire protocol. See the following link
+for details:
+
+    https://redis.io/topics/protocol
+
 ## How to run
 
 1. Download the repo.
