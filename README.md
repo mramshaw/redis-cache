@@ -6,7 +6,31 @@
 [![GoDoc](https://godoc.org/github.com/mramshaw/redis-cache?status.svg)](https://godoc.org/github.com/mramshaw/redis-cache)
 [![GitHub release](https://img.shields.io/github/release/mramshaw/redis-cache.svg?style=flat-square)](https://github.com/mramshaw/redis-cache/releases)
 
-A redis proxy service
+A redis cache proxy service
+
+There are myriad solutions for scaling out [redis](https://redis.io/).
+
+First, a definition. According to [Wikipedia](https://en.wikipedia.org/wiki/Redis), redis is:
+
+> an open-source in-memory database project implementing a distributed, in-memory key-value store with optional durability.
+
+Note the _optional durability_ part: this means redis is __not__ a database. While there are
+options that may be specified that will make redis _resemble_ a database, using redis as a
+database will probably only lead to problems (I have heard this from more than one company).
+
+However, I suppose I can understand the confusion; according to the same Wikipedia article:
+
+> Redis has also been ranked the #4 NoSQL database in user satisfaction and market presence based on user reviews
+
+The _distributed_ part bears some discussion as well. There are ways of replicating and/or
+sharding redis that allow for the creation of redis clusters (of up to 1,000 nodes), but this
+effort attempts to create redis caches that will offload GET requests from the redis master.
+
+The ultimate goal is that these caches should be _composable_, i.e. it should be possible
+to layer them one on top of another so as to create a federated cache. According, they will
+either serve GET requests from local cache memory or pass them on to the next redis cache.
+Ultimately these GET requests are served by the redis master itself.
+
 
 ## Deployment
 
