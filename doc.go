@@ -7,13 +7,13 @@ These caching proxies can be stacked to add capacity to a Redis master while red
 
 Environmental parameters:
 
-    REDIS specifies the location of the backing Redis master (might be another caching proxy)
+    REDIS specifies the downstream Redis master (which might be another caching proxy)
 
-    EXPIRY_TIME specifies the length of time the Redis value should be cached
+    EXPIRY_TIME specifies the length of time (milliseconds) the Redis value should be cached
 
     CACHE_SIZE defines the number of Redis values to cache
 
-    PORT specifies the port on which the caching proxy instance should listen
+    PORT specifies the port on which the caching instance should listen
 
     TYPE specifies the type of caching to provide (either HTTP or TCP)
 */

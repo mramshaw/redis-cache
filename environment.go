@@ -1,3 +1,4 @@
+// environment handles the 12-Factor environment parameters for redis-cache.
 package main
 
 import (
