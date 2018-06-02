@@ -27,7 +27,7 @@ sharding redis that allow for the creation of redis clusters (of up to 1,000 nod
 effort attempts to create redis caches that will offload GET requests from the redis master.
 
 The ultimate goal is that these caches should be _composable_, i.e. it should be possible
-to layer them one on top of another so as to create a federated cache. According, they will
+to layer them one on top of another so as to create a federated cache. Accordingly, they will
 either serve GET requests from local cache memory or pass them on to the next redis cache.
 Ultimately these GET requests are served by the redis master itself.
 
@@ -40,15 +40,19 @@ The application will be deployed as follows:
 
 ## What the code does
 
-The application launches a web server which responds to HTTP requests.
+The application launches a web server which responds to HTTP requests
+(in the case of an endpoint) or to TCP requests (in the case of an
+intermediate).
 
-When a request for a specific key is received, the application checks
-its cache for the specified key. If found, the value associated with
-the key is returned via HTTP. If not found, the request is forwarded
-to Redis - if the key is found then the value is stored in the cache
-and the value is returned via HTTP. If not found a 404 is returned.
+When a request for a specific key is received, the server checks its
+local cache for the specified key. If found, the value associated with
+the key is returned (either via HTTP [endpoints] or via TCP [in the
+case of intermediates]). If not found, the request is forwarded on
+to the next server (or Redis istself) - if the key is found then the
+value is stored in the cache and the value is returned. If not found
+an HTTP 404 is returned.
 
-At application startup a daemon process is launched, which runs from
+At server startup a daemon process is launched, which runs from
 time to time and expires any cache entries older than a configurable
 time limit.
 
