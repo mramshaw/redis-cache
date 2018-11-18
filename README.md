@@ -1,16 +1,16 @@
 # redis-cache
 
-[![Build status](https://travis-ci.org/mramshaw/redis-cache.svg?branch=master)](https://travis-ci.org/mramshaw/redis-cache)
+[![Build status](http://travis-ci.org/mramshaw/redis-cache.svg?branch=master)](http://travis-ci.org/mramshaw/redis-cache)
 [![Coverage Status](http://codecov.io/github/mramshaw/redis-cache/coverage.svg?branch=master)](http://codecov.io/github/mramshaw/redis-cache?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/mramshaw/redis-cache?style=flat-square)](https://goreportcard.com/report/github.com/mramshaw/redis-cache)
-[![GoDoc](https://godoc.org/github.com/mramshaw/redis-cache?status.svg)](https://godoc.org/github.com/mramshaw/redis-cache)
-[![GitHub release](https://img.shields.io/github/release/mramshaw/redis-cache.svg?style=flat-square)](https://github.com/mramshaw/redis-cache/releases)
+[![Go Report Card](http://goreportcard.com/badge/github.com/mramshaw/redis-cache?style=flat-square)](http://goreportcard.com/report/github.com/mramshaw/redis-cache)
+[![GoDoc](http://godoc.org/github.com/mramshaw/redis-cache?status.svg)](http://godoc.org/github.com/mramshaw/redis-cache)
+[![GitHub release](http://img.shields.io/github/release/mramshaw/redis-cache.svg?style=flat-square)](http://github.com/mramshaw/redis-cache/releases)
 
 A redis cache proxy service
 
-There are myriad solutions for scaling out [redis](https://redis.io/).
+There are myriad solutions for scaling out [redis](http://redis.io/).
 
-First, a definition. According to [Wikipedia](https://en.wikipedia.org/wiki/Redis), redis is:
+First, a definition. According to [Wikipedia](http://en.wikipedia.org/wiki/Redis), redis is:
 
 > an open-source in-memory database project implementing a distributed, in-memory key-value store with optional durability.
 
@@ -46,10 +46,10 @@ intermediate).
 
 When a request for a specific key is received, the server checks its
 local cache for the specified key. If found, the value associated with
-the key is returned (either via HTTP [endpoints] or via TCP [in the
-case of intermediates]). If not found, the request is forwarded on
-to the next server (or Redis istself) - if the key is found then the
-value is stored in the cache and the value is returned. If not found
+the key is returned (either via HTTP [endpoints] or TCP [in the case
+of intermediates]). If not found, the request is forwarded on to the
+next server (or Redis itself) - if the key is found then the value
+is stored in the cache and the value is returned. If not found
 an HTTP 404 is returned.
 
 At server startup a daemon process is launched, which runs from
@@ -65,7 +65,7 @@ to make space for newer entries.
 Internally, redis uses its own wire protocol. See the following link
 for details:
 
-    https://redis.io/topics/protocol
+    http://redis.io/topics/protocol
 
 ## How to run
 
@@ -75,11 +75,11 @@ for details:
 
 3. Change directory into the repo:
 
-    $ cd assignment
+    cd assignment
 
 4. Type the following to run the tests:
 
-    $ make test
+    make test
 
 [It may take a few minutes for the docker images to download.]
 
@@ -158,9 +158,9 @@ The HTTP version (default) requires `curl` for testing.
 
 The TCP version requires `nc` (netcat) for testing.
 
-1. docker-compose up -d redis
-2. docker-compose up golang
-3. docker-compose down
+1. `docker-compose up -d redis`
+2. `docker-compose up golang`
+3. `docker-compose down`
 
 #### Build
 
@@ -228,6 +228,6 @@ valuet$
 - [ ] Refactor to avoid duplicate mutexes
 - [ ] Refactor duplicated tests and testing code (table-driven)
 - [x] Refactor to include 12-Factor initialization in code coverage
-- [ ] Add goroutines for multiple clients ([pool](https://godoc.org/github.com/mediocregopher/radix.v2/pool) looks useful)
-- [x] Add RESP ([respgo](https://github.com/teambition/respgo) looks useful)
+- [ ] Add goroutines for multiple clients ([pool](http://godoc.org/github.com/mediocregopher/radix.v2/pool) looks useful)
+- [x] Add RESP ([respgo](http://github.com/teambition/respgo) looks useful)
 - [ ] Add pipelining
