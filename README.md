@@ -16,7 +16,8 @@ First, a definition. According to [Wikipedia](http://en.wikipedia.org/wiki/Redis
 
 Note the _optional durability_ part: this means redis is __not__ a database. While there are
 options that may be specified that will make redis _resemble_ a database, using redis as a
-database will probably only lead to problems (I have heard this from more than one company).
+database will probably lead to problems (I have seen this in action, plus I have heard
+similiar stories from more than one company).
 
 However, I suppose I can understand the confusion; according to the same Wikipedia article:
 
@@ -73,19 +74,15 @@ for details:
 
 2. Unzip it somewhere.
 
-3. Change directory into the repo:
+3. Change directory into the repo: <kbd>cd assignment</kbd>
 
-    cd assignment
-
-4. Type the following to run the tests:
-
-    make test
+4. Type the following to run the tests: <kbd>make test</kbd>
 
 [It may take a few minutes for the docker images to download.]
 
 The results should look as follows (times are GMT):
 
-```
+``` Bash
 $ make test
 docker-compose up -d redis
 Creating network "rediscache_redis-caching" with the default driver
@@ -146,7 +143,7 @@ $ GOPATH=`pwd`/vendor/ go get -d -v .
 
 For testing, `redis-cli` is needed. Set up test data as follows:
 
-```
+``` Bash
 $ redis-cli
 127.0.0.1:6379> SET keyt valuet
 OK
@@ -166,7 +163,7 @@ The TCP version requires `nc` (netcat) for testing.
 
 Build `redis_lru_cache` (this will save time later).
 
-```
+``` Bash
 $ make
 <...>
 redis_lru_cache has been compiled
@@ -177,13 +174,14 @@ $
 
 Verify redis is running correctly as follows:
 
-```
+``` Bash
 $ docker-compose up -d redis
+<...>
 ```
 
 And:
 
-```
+``` Bash
 $ cat test | nc localhost 6379
 $6
 valuet
@@ -194,14 +192,14 @@ $
 
 Test as follows:
 
-```
+``` Bash
 $ docker-compose up golang-tcp
 <...>
 ```
 
 In a new console:
 
-```
+``` Bash
 $ cat test | nc localhost 7001
 valuet$
 ```
@@ -211,14 +209,14 @@ valuet$
 Test as follows:
 
 
-```
+``` Bash
 $ docker-compose up golang-http
 <...>
 ```
 
 In a new console:
 
-```
+``` Bash
 $ curl http://localhost/keyt
 valuet$
 ```
